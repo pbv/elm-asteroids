@@ -1,6 +1,10 @@
-
+--
+-- Sample Asteroids-like video game in Elm
+-- Pedro Vasconcelos, 2015
+--
+-- View module: rendering the model as a graphic element
+-- 
 module View where
-
 
 import Model exposing (Model)
 
@@ -9,6 +13,7 @@ import Graphics.Element exposing (..)
 import Color
 import Text
 
+-- | rendering with given width and height
 view : (Int,Int) -> Model -> Element
 view (width,height) model =       
   color Color.black <|
@@ -37,36 +42,33 @@ drawShip obj =
   else
     draw obj ship
 
-
 draw obj shape = 
   shape |> 
   rotate obj.ang |> 
   move (obj.x, obj.y) 
-              
 
+-- | basic shapes         
 ship = polygon [(15,0),(-10,10), (-5,0),(-10,-10),(15,0)] |>
        filled Color.green
 
 thrust = oval 20 5 |> filled Color.white
          
-
-
-
 asteroid = 
-  let fig = polygon [(-10,5),(-5, 10),(10,5), (5,-5),(-5,-10),(-10,5)] 
-  in group [ fig |> filled Color.red
-           , fig |> outlined { defaultLine | color=Color.white, width=1 }
-           ]
+  let 
+    shape = polygon [(-10,5),(-5, 10),(10,5), (5,-5),(-5,-10),(-10,5)] 
+  in 
+    group [ shape |> filled Color.red
+          , shape |> outlined { defaultLine | color=Color.white, width=1 }
+          ]
 
-laser = segment (0,0) (10,0) |> 
-        traced { defaultLine | color=Color.yellow, width=4 }
-
-
+laser = 
+  segment (0,0) (20,0) |> 
+  traced { defaultLine | color=Color.yellow, width=4 }
 
 -------------------------
 -- testing code
 -------------------------
 
--- main = view Model.initial
+main = view (600,600) Model.initial
 
 

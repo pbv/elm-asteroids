@@ -1,5 +1,9 @@
-
-
+--
+-- Sample Asteroids-like video game in Elm
+-- Pedro Vasconcelos, 2015
+--
+-- Main module: signals setup and updates
+-- 
 module Asteroids where
 
 import Model exposing (Model)
@@ -20,7 +24,7 @@ type Update = TimeDelta Time
             | Fire
 
 
-
+-- | react to an update
 update : Update -> Model -> Model
 update updt model 
   = case updt of
@@ -34,12 +38,9 @@ update updt model
         Model.fireLaser model
 
 
-
-
 --- putting it all together
 main : Signal Element
 main = Signal.map2 View.view Window.dimensions game 
-
 
 game : Signal Model
 game = Signal.foldp update Model.initial <|
@@ -48,12 +49,15 @@ game = Signal.foldp update Model.initial <|
 --
 -- individual update signals
 --
-timeUpdates = Signal.merge fireUpdates
-              (Signal.map (\t -> TimeDelta (t/Time.second)) (Time.fps 30))
+-- | timed updates
+timeUpdates = Signal.merge 
+              (Signal.map (\t -> TimeDelta (t/Time.second)) (Time.fps 60))
+              autofireUpdates
 
-fireUpdates 
+autofireUpdates 
   = Signal.map (\_ -> Fire)  (Time.every Time.second)
 
+-- | user-controlled updates
 controlUpdates = Signal.merge keyboardUpdates touchUpdates
 
 keyboardUpdates = 
@@ -78,8 +82,6 @@ touchUpdates =
 
   in
     Signal.map2 decode Window.dimensions Touch.touches
-
-
 
 
 

@@ -1,5 +1,8 @@
 --
--- Model for an Asteroids-like video game
+-- Sample Asteroids-like video game in Elm
+-- Pedro Vasconcelos, 2015
+--
+-- Model: internal representation of the game state
 --
 module Model where
 

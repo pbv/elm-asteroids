@@ -7132,16 +7132,16 @@ Elm.View.make = function (_elm) {
    var _op = {};
    var laser = A2($Graphics$Collage.traced,
    _U.update($Graphics$Collage.defaultLine,{color: $Color.yellow,width: 4}),
-   A2($Graphics$Collage.segment,{ctor: "_Tuple2",_0: 0,_1: 0},{ctor: "_Tuple2",_0: 10,_1: 0}));
+   A2($Graphics$Collage.segment,{ctor: "_Tuple2",_0: 0,_1: 0},{ctor: "_Tuple2",_0: 20,_1: 0}));
    var asteroid = function () {
-      var fig = $Graphics$Collage.polygon(_U.list([{ctor: "_Tuple2",_0: -10,_1: 5}
-                                                  ,{ctor: "_Tuple2",_0: -5,_1: 10}
-                                                  ,{ctor: "_Tuple2",_0: 10,_1: 5}
-                                                  ,{ctor: "_Tuple2",_0: 5,_1: -5}
-                                                  ,{ctor: "_Tuple2",_0: -5,_1: -10}
-                                                  ,{ctor: "_Tuple2",_0: -10,_1: 5}]));
-      return $Graphics$Collage.group(_U.list([A2($Graphics$Collage.filled,$Color.red,fig)
-                                             ,A2($Graphics$Collage.outlined,_U.update($Graphics$Collage.defaultLine,{color: $Color.white,width: 1}),fig)]));
+      var shape = $Graphics$Collage.polygon(_U.list([{ctor: "_Tuple2",_0: -10,_1: 5}
+                                                    ,{ctor: "_Tuple2",_0: -5,_1: 10}
+                                                    ,{ctor: "_Tuple2",_0: 10,_1: 5}
+                                                    ,{ctor: "_Tuple2",_0: 5,_1: -5}
+                                                    ,{ctor: "_Tuple2",_0: -5,_1: -10}
+                                                    ,{ctor: "_Tuple2",_0: -10,_1: 5}]));
+      return $Graphics$Collage.group(_U.list([A2($Graphics$Collage.filled,$Color.red,shape)
+                                             ,A2($Graphics$Collage.outlined,_U.update($Graphics$Collage.defaultLine,{color: $Color.white,width: 1}),shape)]));
    }();
    var thrust = A2($Graphics$Collage.filled,$Color.white,A2($Graphics$Collage.oval,20,5));
    var ship = A2($Graphics$Collage.filled,
@@ -7178,6 +7178,7 @@ Elm.View.make = function (_elm) {
       _U.list([A2(showScore,_p6 / 2 | 0,model.score),drawShip(model.ship)]),
       A2($Basics._op["++"],A2($List.map,drawAsteroid,model.asteroids),A2($List.map,drawLaser,model.lasers)))));
    });
+   var main = A2(view,{ctor: "_Tuple2",_0: 600,_1: 600},$Model.initial);
    return _elm.View.values = {_op: _op
                              ,view: view
                              ,showScore: showScore
@@ -7188,7 +7189,8 @@ Elm.View.make = function (_elm) {
                              ,ship: ship
                              ,thrust: thrust
                              ,asteroid: asteroid
-                             ,laser: laser};
+                             ,laser: laser
+                             ,main: main};
 };Elm.Asteroids = Elm.Asteroids || {};
 Elm.Asteroids.make = function (_elm) {
    "use strict";
@@ -7218,7 +7220,7 @@ Elm.Asteroids.make = function (_elm) {
          default: return $Model.fireLaser(model);}
    });
    var Fire = {ctor: "Fire"};
-   var fireUpdates = A2($Signal.map,function (_p2) {    return Fire;},$Time.every($Time.second));
+   var autofireUpdates = A2($Signal.map,function (_p2) {    return Fire;},$Time.every($Time.second));
    var Movement = function (a) {    return {ctor: "Movement",_0: a};};
    var keyboardUpdates = A2($Signal.merge,
    A2($Signal.map,Movement,$Keyboard.arrows),
@@ -7241,7 +7243,7 @@ Elm.Asteroids.make = function (_elm) {
    }();
    var controlUpdates = A2($Signal.merge,keyboardUpdates,touchUpdates);
    var TimeDelta = function (a) {    return {ctor: "TimeDelta",_0: a};};
-   var timeUpdates = A2($Signal.merge,fireUpdates,A2($Signal.map,function (t) {    return TimeDelta(t / $Time.second);},$Time.fps(30)));
+   var timeUpdates = A2($Signal.merge,A2($Signal.map,function (t) {    return TimeDelta(t / $Time.second);},$Time.fps(60)),autofireUpdates);
    var game = A3($Signal.foldp,update,$Model.initial,A2($Signal.merge,timeUpdates,controlUpdates));
    var main = A3($Signal.map2,$View.view,$Window.dimensions,game);
    var Vec = F2(function (a,b) {    return {x: a,y: b};});
@@ -7254,7 +7256,7 @@ Elm.Asteroids.make = function (_elm) {
                                   ,main: main
                                   ,game: game
                                   ,timeUpdates: timeUpdates
-                                  ,fireUpdates: fireUpdates
+                                  ,autofireUpdates: autofireUpdates
                                   ,controlUpdates: controlUpdates
                                   ,keyboardUpdates: keyboardUpdates
                                   ,touchUpdates: touchUpdates};
