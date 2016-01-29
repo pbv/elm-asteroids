@@ -13,11 +13,11 @@ type alias Object = {
     vx : Float,
     vy : Float,
     ang : Float,
-    angV : Float
+    angV : Float    
   }
 
 type alias Laser 
-  = (Object, Time)  -- time to decay
+  = (Object, Time)  -- time before decay
 
 type alias Asteroid
   = (Object, Float)  -- rock size
@@ -32,16 +32,16 @@ type alias Model = {
 
        
 
--- | advance all objects
-move : Time -> Model -> Model
-move dt model = 
+-- | advance time on all objects
+advance : Time -> Model -> Model
+advance dt model = 
   { model |
       ship = move1 dt model.ship,
       asteroids = List.map (\(obj,size) -> (move1 dt obj,size)) model.asteroids,
       lasers= List.map (\(obj,time) -> (move1 dt obj,time)) model.lasers
       }
 
--- | advance a single object 
+-- | advance time on a single object 
 move1 : Time -> Object -> Object
 move1 dt obj 
   = let
@@ -104,6 +104,31 @@ collision (obj1,size) (obj2,time) = sqDistance obj1 obj2 <= 100*size^2
 sqDistance : Object -> Object  -> Float
 sqDistance obj1 obj2 = (obj1.x - obj2.x)^2 + (obj1.y - obj2.y)^2
 
+
+-- | fire a laser
+fireLaser : Model -> Model
+fireLaser model = 
+  let ship = model.ship
+      newLaser = {   x=ship.x, y=ship.y,
+                     vx= 400*cos (ship.ang), 
+                     vy= 400*sin (ship.ang), 
+                     ang=ship.ang, angV = 0 
+                 }
+      fireDelay = 1
+  in { model | lasers = (newLaser, fireDelay) :: model.lasers }
+
+
+-- | control the ship
+moveShip : { x:Int, y:Int } -> Model -> Model
+moveShip arrows model =
+   let ship = model.ship
+       ship' = { ship | angV = negate (toFloat arrows.x)*pi,
+                   vx = 50*(cos ship.ang)*(toFloat arrows.y),
+                   vy = 50*(sin ship.ang)*(toFloat arrows.y)
+               }
+   in { model | ship = ship' }
+
+
     
 ---
 --- constants
@@ -118,11 +143,13 @@ maxY = 300
 --
 -- initial model
 --
+initial : Model
 initial = 
   { ship = { x = 0, y = 0, vx= 0, vy= 0, ang=0, angV = 0 }
   , asteroids = [ ({x=-200,y=-200, vx=10, vy=10, ang=0, angV=pi}, 2),
                   ({x= 100,y= 100, vx=20, vy=-20, ang=0, angV=-0.5*pi}, 4),
-                  ({x= 100, y=-200, vx=-10, vy=-10, ang=pi, angV=pi}, 2.5)
+                  ({x= 100, y=-200, vx=-10, vy=-10, ang=pi, angV=pi}, 2.5),
+                  ({x= 0, y=-200, vx=-10, vy=-10, ang=pi, angV=pi}, 2)
                 ]
   , lasers = []
   , score = 0

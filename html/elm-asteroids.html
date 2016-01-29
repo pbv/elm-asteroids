@@ -6752,232 +6752,268 @@ Elm.Keyboard.make = function (_elm) {
                                  ,isDown: isDown
                                  ,keysDown: keysDown
                                  ,presses: presses};
-};Elm.Random = Elm.Random || {};
-Elm.Random.make = function (_elm) {
+};Elm.Native = Elm.Native || {};
+Elm.Native.Touch = {};
+Elm.Native.Touch.make = function(localRuntime) {
+	localRuntime.Native = localRuntime.Native || {};
+	localRuntime.Native.Touch = localRuntime.Native.Touch || {};
+	if (localRuntime.Native.Touch.values)
+	{
+		return localRuntime.Native.Touch.values;
+	}
+
+	var Signal = Elm.Signal.make(localRuntime);
+	var NS = Elm.Native.Signal.make(localRuntime);
+	var List = Elm.Native.List.make(localRuntime);
+	var Utils = Elm.Native.Utils.make(localRuntime);
+
+	function Dict() {
+		this.keys = [];
+		this.values = [];
+
+		this.insert = function(key, value) {
+			this.keys.push(key);
+			this.values.push(value);
+		};
+		this.lookup = function(key) {
+			var i = this.keys.indexOf(key);
+			return i >= 0 ? this.values[i] : {x: 0, y: 0, t: 0};
+		};
+		this.remove = function(key) {
+			var i = this.keys.indexOf(key);
+			if (i < 0) return;
+			var t = this.values[i];
+			this.keys.splice(i, 1);
+			this.values.splice(i, 1);
+			return t;
+		};
+		this.clear = function() {
+			this.keys = [];
+			this.values = [];
+		};
+	}
+
+	var root = NS.input('touch', []),
+		tapTime = 500,
+		hasTap = false,
+		tap = { x: 0, y: 0},
+		dict = new Dict();
+
+	function touch(t) {
+		var r = dict.lookup(t.identifier);
+		var point = Utils.getXY(t);
+		return {
+			id: t.identifier,
+			x: point._0,
+			y: point._1,
+			x0: r.x,
+			y0: r.y,
+			t0: r.t
+		 };
+	}
+
+	var node = localRuntime.isFullscreen()
+		? document
+		: localRuntime.node;
+
+	function start(e) {
+		var point = Utils.getXY(e);
+		dict.insert(e.identifier, {
+			x: point._0,
+			y: point._1,
+			t: localRuntime.timer.now()
+		});
+	}
+	function end(e) {
+		var t = dict.remove(e.identifier);
+		if (localRuntime.timer.now() - t.t < tapTime)
+		{
+			hasTap = true;
+			tap = {
+				x: t.x,
+				y: t.y
+			};
+		}
+	}
+
+	function listen(name, f) {
+		function update(e) {
+			for (var i = e.changedTouches.length; i--; ) {
+				f(e.changedTouches[i]);
+			}
+			var ts = new Array(e.touches.length);
+			for (var i = e.touches.length; i--; ) {
+				ts[i] = touch(e.touches[i]);
+			}
+			localRuntime.notify(root.id, ts);
+			e.preventDefault();
+		}
+		localRuntime.addListener([root.id], node, name, update);
+	}
+
+	listen('touchstart', start);
+	listen('touchmove', function(_) {});
+	listen('touchend', end);
+	listen('touchcancel', end);
+	listen('touchleave', end);
+
+	var mouseID = -1;
+	function move(e) {
+		var point = Utils.getXY(e);
+		for (var i = root.value.length; i--; ) {
+			if (root.value[i].id === mouseID)
+			{
+				root.value[i].x = point._0;
+				root.value[i].y = point._1;
+				localRuntime.notify(root.id, root.value);
+				break;
+			}
+		}
+	}
+	localRuntime.addListener([root.id], node, 'mousedown', function down(e) {
+		node.addEventListener('mousemove', move);
+		e.identifier = mouseID;
+		start(e);
+		root.value.push(touch(e));
+		localRuntime.notify(root.id, root.value);
+	});
+	localRuntime.addListener([root.id], document, 'mouseup', function up(e) {
+		node.removeEventListener('mousemove', move);
+		e.identifier = mouseID;
+		end(e);
+		for (var i = root.value.length; i--; ) {
+			if (root.value[i].id === mouseID)
+			{
+				root.value.splice(i, 1);
+				--mouseID;
+				break;
+			}
+		}
+		localRuntime.notify(root.id, root.value);
+	});
+	localRuntime.addListener([root.id], node, 'blur', function blur(e) {
+		node.removeEventListener('mousemove', move);
+		if (root.value.length > 0)
+		{
+			localRuntime.notify(root.id, []);
+			--mouseID;
+		}
+		dict.clear();
+	});
+
+	function dependency(f) {
+		var sig = A2( Signal.map, f, root );
+		root.defaultNumberOfKids += 1;
+		sig.defaultNumberOfKids = 0;
+		return sig;
+	}
+
+	var touches = dependency(List.fromArray);
+
+	var taps = function() {
+		var sig = dependency(function(_) { return tap; });
+		sig.defaultNumberOfKids = 1;
+		function pred(_) {
+			var b = hasTap;
+			hasTap = false;
+			return b;
+		}
+		var sig2 = A3(Signal.filter, pred, {x: 0, y: 0}, sig);
+		sig2.defaultNumberOfKids = 0;
+		return sig2;
+	}();
+
+	return localRuntime.Native.Touch.values = { touches: touches, taps: taps };
+};
+Elm.Native = Elm.Native || {};
+Elm.Native.Window = {};
+Elm.Native.Window.make = function make(localRuntime) {
+	localRuntime.Native = localRuntime.Native || {};
+	localRuntime.Native.Window = localRuntime.Native.Window || {};
+	if (localRuntime.Native.Window.values)
+	{
+		return localRuntime.Native.Window.values;
+	}
+
+	var NS = Elm.Native.Signal.make(localRuntime);
+	var Tuple2 = Elm.Native.Utils.make(localRuntime).Tuple2;
+
+
+	function getWidth()
+	{
+		return localRuntime.node.clientWidth;
+	}
+
+
+	function getHeight()
+	{
+		if (localRuntime.isFullscreen())
+		{
+			return window.innerHeight;
+		}
+		return localRuntime.node.clientHeight;
+	}
+
+
+	var dimensions = NS.input('Window.dimensions', Tuple2(getWidth(), getHeight()));
+
+
+	function resizeIfNeeded()
+	{
+		// Do not trigger event if the dimensions have not changed.
+		// This should be most of the time.
+		var w = getWidth();
+		var h = getHeight();
+		if (dimensions.value._0 === w && dimensions.value._1 === h)
+		{
+			return;
+		}
+
+		setTimeout(function() {
+			// Check again to see if the dimensions have changed.
+			// It is conceivable that the dimensions have changed
+			// again while some other event was being processed.
+			w = getWidth();
+			h = getHeight();
+			if (dimensions.value._0 === w && dimensions.value._1 === h)
+			{
+				return;
+			}
+			localRuntime.notify(dimensions.id, Tuple2(w, h));
+		}, 0);
+	}
+
+
+	localRuntime.addListener([dimensions.id], window, 'resize', resizeIfNeeded);
+
+
+	return localRuntime.Native.Window.values = {
+		dimensions: dimensions,
+		resizeIfNeeded: resizeIfNeeded
+	};
+};
+Elm.Touch = Elm.Touch || {};
+Elm.Touch.make = function (_elm) {
    "use strict";
-   _elm.Random = _elm.Random || {};
-   if (_elm.Random.values) return _elm.Random.values;
-   var _U = Elm.Native.Utils.make(_elm),$Basics = Elm.Basics.make(_elm),$List = Elm.List.make(_elm);
+   _elm.Touch = _elm.Touch || {};
+   if (_elm.Touch.values) return _elm.Touch.values;
+   var _U = Elm.Native.Utils.make(_elm),$Native$Touch = Elm.Native.Touch.make(_elm),$Signal = Elm.Signal.make(_elm),$Time = Elm.Time.make(_elm);
    var _op = {};
-   var magicNum8 = 2147483562;
-   var range = function (_p0) {    return {ctor: "_Tuple2",_0: 0,_1: magicNum8};};
-   var magicNum7 = 2137383399;
-   var magicNum6 = 2147483563;
-   var magicNum5 = 3791;
-   var magicNum4 = 40692;
-   var magicNum3 = 52774;
-   var magicNum2 = 12211;
-   var magicNum1 = 53668;
-   var magicNum0 = 40014;
-   var generate = F2(function (_p1,seed) {    var _p2 = _p1;return _p2._0(seed);});
-   var Seed = function (a) {    return {ctor: "Seed",_0: a};};
-   var State = F2(function (a,b) {    return {ctor: "State",_0: a,_1: b};});
-   var initState = function (s$) {
-      var s = A2($Basics.max,s$,0 - s$);
-      var q = s / (magicNum6 - 1) | 0;
-      var s2 = A2($Basics._op["%"],q,magicNum7 - 1);
-      var s1 = A2($Basics._op["%"],s,magicNum6 - 1);
-      return A2(State,s1 + 1,s2 + 1);
-   };
-   var next = function (_p3) {
-      var _p4 = _p3;
-      var _p6 = _p4._1;
-      var _p5 = _p4._0;
-      var k$ = _p6 / magicNum3 | 0;
-      var s2$ = magicNum4 * (_p6 - k$ * magicNum3) - k$ * magicNum5;
-      var s2$$ = _U.cmp(s2$,0) < 0 ? s2$ + magicNum7 : s2$;
-      var k = _p5 / magicNum1 | 0;
-      var s1$ = magicNum0 * (_p5 - k * magicNum1) - k * magicNum2;
-      var s1$$ = _U.cmp(s1$,0) < 0 ? s1$ + magicNum6 : s1$;
-      var z = s1$$ - s2$$;
-      var z$ = _U.cmp(z,1) < 0 ? z + magicNum8 : z;
-      return {ctor: "_Tuple2",_0: z$,_1: A2(State,s1$$,s2$$)};
-   };
-   var split = function (_p7) {
-      var _p8 = _p7;
-      var _p11 = _p8._1;
-      var _p10 = _p8._0;
-      var _p9 = $Basics.snd(next(_p8));
-      var t1 = _p9._0;
-      var t2 = _p9._1;
-      var new_s2 = _U.eq(_p11,1) ? magicNum7 - 1 : _p11 - 1;
-      var new_s1 = _U.eq(_p10,magicNum6 - 1) ? 1 : _p10 + 1;
-      return {ctor: "_Tuple2",_0: A2(State,new_s1,t2),_1: A2(State,t1,new_s2)};
-   };
-   var initialSeed = function (n) {    return Seed({state: initState(n),next: next,split: split,range: range});};
-   var Generator = function (a) {    return {ctor: "Generator",_0: a};};
-   var andThen = F2(function (_p12,callback) {
-      var _p13 = _p12;
-      return Generator(function (seed) {
-         var _p14 = _p13._0(seed);
-         var result = _p14._0;
-         var newSeed = _p14._1;
-         var _p15 = callback(result);
-         var genB = _p15._0;
-         return genB(newSeed);
-      });
-   });
-   var map5 = F6(function (func,_p20,_p19,_p18,_p17,_p16) {
-      var _p21 = _p20;
-      var _p22 = _p19;
-      var _p23 = _p18;
-      var _p24 = _p17;
-      var _p25 = _p16;
-      return Generator(function (seed0) {
-         var _p26 = _p21._0(seed0);
-         var a = _p26._0;
-         var seed1 = _p26._1;
-         var _p27 = _p22._0(seed1);
-         var b = _p27._0;
-         var seed2 = _p27._1;
-         var _p28 = _p23._0(seed2);
-         var c = _p28._0;
-         var seed3 = _p28._1;
-         var _p29 = _p24._0(seed3);
-         var d = _p29._0;
-         var seed4 = _p29._1;
-         var _p30 = _p25._0(seed4);
-         var e = _p30._0;
-         var seed5 = _p30._1;
-         return {ctor: "_Tuple2",_0: A5(func,a,b,c,d,e),_1: seed5};
-      });
-   });
-   var map4 = F5(function (func,_p34,_p33,_p32,_p31) {
-      var _p35 = _p34;
-      var _p36 = _p33;
-      var _p37 = _p32;
-      var _p38 = _p31;
-      return Generator(function (seed0) {
-         var _p39 = _p35._0(seed0);
-         var a = _p39._0;
-         var seed1 = _p39._1;
-         var _p40 = _p36._0(seed1);
-         var b = _p40._0;
-         var seed2 = _p40._1;
-         var _p41 = _p37._0(seed2);
-         var c = _p41._0;
-         var seed3 = _p41._1;
-         var _p42 = _p38._0(seed3);
-         var d = _p42._0;
-         var seed4 = _p42._1;
-         return {ctor: "_Tuple2",_0: A4(func,a,b,c,d),_1: seed4};
-      });
-   });
-   var map3 = F4(function (func,_p45,_p44,_p43) {
-      var _p46 = _p45;
-      var _p47 = _p44;
-      var _p48 = _p43;
-      return Generator(function (seed0) {
-         var _p49 = _p46._0(seed0);
-         var a = _p49._0;
-         var seed1 = _p49._1;
-         var _p50 = _p47._0(seed1);
-         var b = _p50._0;
-         var seed2 = _p50._1;
-         var _p51 = _p48._0(seed2);
-         var c = _p51._0;
-         var seed3 = _p51._1;
-         return {ctor: "_Tuple2",_0: A3(func,a,b,c),_1: seed3};
-      });
-   });
-   var map2 = F3(function (func,_p53,_p52) {
-      var _p54 = _p53;
-      var _p55 = _p52;
-      return Generator(function (seed0) {
-         var _p56 = _p54._0(seed0);
-         var a = _p56._0;
-         var seed1 = _p56._1;
-         var _p57 = _p55._0(seed1);
-         var b = _p57._0;
-         var seed2 = _p57._1;
-         return {ctor: "_Tuple2",_0: A2(func,a,b),_1: seed2};
-      });
-   });
-   var map = F2(function (func,_p58) {
-      var _p59 = _p58;
-      return Generator(function (seed0) {    var _p60 = _p59._0(seed0);var a = _p60._0;var seed1 = _p60._1;return {ctor: "_Tuple2",_0: func(a),_1: seed1};});
-   });
-   var listHelp = F4(function (list,n,generate,seed) {
-      listHelp: while (true) if (_U.cmp(n,1) < 0) return {ctor: "_Tuple2",_0: $List.reverse(list),_1: seed}; else {
-            var _p61 = generate(seed);
-            var value = _p61._0;
-            var newSeed = _p61._1;
-            var _v19 = A2($List._op["::"],value,list),_v20 = n - 1,_v21 = generate,_v22 = newSeed;
-            list = _v19;
-            n = _v20;
-            generate = _v21;
-            seed = _v22;
-            continue listHelp;
-         }
-   });
-   var list = F2(function (n,_p62) {    var _p63 = _p62;return Generator(function (seed) {    return A4(listHelp,_U.list([]),n,_p63._0,seed);});});
-   var pair = F2(function (genA,genB) {    return A3(map2,F2(function (v0,v1) {    return {ctor: "_Tuple2",_0: v0,_1: v1};}),genA,genB);});
-   var minInt = -2147483648;
-   var maxInt = 2147483647;
-   var iLogBase = F2(function (b,i) {    return _U.cmp(i,b) < 0 ? 1 : 1 + A2(iLogBase,b,i / b | 0);});
-   var $int = F2(function (a,b) {
-      return Generator(function (_p64) {
-         var _p65 = _p64;
-         var _p70 = _p65._0;
-         var base = 2147483561;
-         var f = F3(function (n,acc,state) {
-            f: while (true) {
-               var _p66 = n;
-               if (_p66 === 0) {
-                     return {ctor: "_Tuple2",_0: acc,_1: state};
-                  } else {
-                     var _p67 = _p70.next(state);
-                     var x = _p67._0;
-                     var state$ = _p67._1;
-                     var _v26 = n - 1,_v27 = x + acc * base,_v28 = state$;
-                     n = _v26;
-                     acc = _v27;
-                     state = _v28;
-                     continue f;
-                  }
-            }
-         });
-         var _p68 = _U.cmp(a,b) < 0 ? {ctor: "_Tuple2",_0: a,_1: b} : {ctor: "_Tuple2",_0: b,_1: a};
-         var lo = _p68._0;
-         var hi = _p68._1;
-         var k = hi - lo + 1;
-         var n = A2(iLogBase,base,k);
-         var _p69 = A3(f,n,1,_p70.state);
-         var v = _p69._0;
-         var state$ = _p69._1;
-         return {ctor: "_Tuple2",_0: lo + A2($Basics._op["%"],v,k),_1: Seed(_U.update(_p70,{state: state$}))};
-      });
-   });
-   var $float = F2(function (a,b) {
-      return Generator(function (seed) {
-         var _p71 = A2(generate,A2($int,minInt,maxInt),seed);
-         var number = _p71._0;
-         var newSeed = _p71._1;
-         var negativeOneToOne = $Basics.toFloat(number) / $Basics.toFloat(maxInt - minInt);
-         var _p72 = _U.cmp(a,b) < 0 ? {ctor: "_Tuple2",_0: a,_1: b} : {ctor: "_Tuple2",_0: b,_1: a};
-         var lo = _p72._0;
-         var hi = _p72._1;
-         var scaled = (lo + hi) / 2 + (hi - lo) * negativeOneToOne;
-         return {ctor: "_Tuple2",_0: scaled,_1: newSeed};
-      });
-   });
-   var bool = A2(map,F2(function (x,y) {    return _U.eq(x,y);})(1),A2($int,0,1));
-   return _elm.Random.values = {_op: _op
-                               ,bool: bool
-                               ,$int: $int
-                               ,$float: $float
-                               ,list: list
-                               ,pair: pair
-                               ,map: map
-                               ,map2: map2
-                               ,map3: map3
-                               ,map4: map4
-                               ,map5: map5
-                               ,andThen: andThen
-                               ,minInt: minInt
-                               ,maxInt: maxInt
-                               ,generate: generate
-                               ,initialSeed: initialSeed};
+   var taps = $Native$Touch.taps;
+   var touches = $Native$Touch.touches;
+   var Touch = F6(function (a,b,c,d,e,f) {    return {x: a,y: b,id: c,x0: d,y0: e,t0: f};});
+   return _elm.Touch.values = {_op: _op,touches: touches,taps: taps,Touch: Touch};
+};Elm.Window = Elm.Window || {};
+Elm.Window.make = function (_elm) {
+   "use strict";
+   _elm.Window = _elm.Window || {};
+   if (_elm.Window.values) return _elm.Window.values;
+   var _U = Elm.Native.Utils.make(_elm),$Basics = Elm.Basics.make(_elm),$Native$Window = Elm.Native.Window.make(_elm),$Signal = Elm.Signal.make(_elm);
+   var _op = {};
+   var dimensions = $Native$Window.dimensions;
+   var width = A2($Signal.map,$Basics.fst,dimensions);
+   var height = A2($Signal.map,$Basics.snd,dimensions);
+   return _elm.Window.values = {_op: _op,dimensions: dimensions,width: width,height: height};
 };Elm.Model = Elm.Model || {};
 Elm.Model.make = function (_elm) {
    "use strict";
@@ -6995,11 +7031,26 @@ Elm.Model.make = function (_elm) {
    var initial = {ship: {x: 0,y: 0,vx: 0,vy: 0,ang: 0,angV: 0}
                  ,asteroids: _U.list([{ctor: "_Tuple2",_0: {x: -200,y: -200,vx: 10,vy: 10,ang: 0,angV: $Basics.pi},_1: 2}
                                      ,{ctor: "_Tuple2",_0: {x: 100,y: 100,vx: 20,vy: -20,ang: 0,angV: -0.5 * $Basics.pi},_1: 4}
-                                     ,{ctor: "_Tuple2",_0: {x: 100,y: -200,vx: -10,vy: -10,ang: $Basics.pi,angV: $Basics.pi},_1: 2.5}])
+                                     ,{ctor: "_Tuple2",_0: {x: 100,y: -200,vx: -10,vy: -10,ang: $Basics.pi,angV: $Basics.pi},_1: 2.5}
+                                     ,{ctor: "_Tuple2",_0: {x: 0,y: -200,vx: -10,vy: -10,ang: $Basics.pi,angV: $Basics.pi},_1: 2}])
                  ,lasers: _U.list([])
                  ,score: 0};
    var maxY = 300;
    var maxX = 300;
+   var moveShip = F2(function (arrows,model) {
+      var ship = model.ship;
+      var ship$ = _U.update(ship,
+      {angV: $Basics.negate($Basics.toFloat(arrows.x)) * $Basics.pi
+      ,vx: 50 * $Basics.cos(ship.ang) * $Basics.toFloat(arrows.y)
+      ,vy: 50 * $Basics.sin(ship.ang) * $Basics.toFloat(arrows.y)});
+      return _U.update(model,{ship: ship$});
+   });
+   var fireLaser = function (model) {
+      var fireDelay = 1;
+      var ship = model.ship;
+      var newLaser = {x: ship.x,y: ship.y,vx: 400 * $Basics.cos(ship.ang),vy: 400 * $Basics.sin(ship.ang),ang: ship.ang,angV: 0};
+      return _U.update(model,{lasers: A2($List._op["::"],{ctor: "_Tuple2",_0: newLaser,_1: fireDelay},model.lasers)});
+   };
    var sqDistance = F2(function (obj1,obj2) {    return Math.pow(obj1.x - obj2.x,2) + Math.pow(obj1.y - obj2.y,2);});
    var collision = F2(function (_p1,_p0) {    var _p2 = _p1;var _p3 = _p0;return _U.cmp(A2(sqDistance,_p2._0,_p3._0),100 * Math.pow(_p2._1,2)) < 1;});
    var fragment = function (_p4) {
@@ -7038,7 +7089,7 @@ Elm.Model.make = function (_elm) {
       var y$ = A2(wrap,obj.y + dt * obj.vy,maxY);
       return _U.update(obj,{x: x$,y: y$,ang: ang$});
    });
-   var move = F2(function (dt,model) {
+   var advance = F2(function (dt,model) {
       return _U.update(model,
       {ship: A2(move1,dt,model.ship)
       ,asteroids: A2($List.map,function (_p13) {    var _p14 = _p13;return {ctor: "_Tuple2",_0: A2(move1,dt,_p14._0),_1: _p14._1};},model.asteroids)
@@ -7049,13 +7100,15 @@ Elm.Model.make = function (_elm) {
    return _elm.Model.values = {_op: _op
                               ,Object: Object
                               ,Model: Model
-                              ,move: move
+                              ,advance: advance
                               ,move1: move1
                               ,decay: decay
                               ,collisions: collisions
                               ,fragment: fragment
                               ,collision: collision
                               ,sqDistance: sqDistance
+                              ,fireLaser: fireLaser
+                              ,moveShip: moveShip
                               ,maxX: maxX
                               ,maxY: maxY
                               ,initial: initial};
@@ -7108,25 +7161,26 @@ Elm.View.make = function (_elm) {
    };
    var drawLaser = function (_p0) {    var _p1 = _p0;return A2(draw,_p1._0,laser);};
    var drawAsteroid = function (_p2) {    var _p3 = _p2;return A2(draw,_p3._0,A2($Graphics$Collage.scale,_p3._1,asteroid));};
-   var drawScore = function (score) {
+   var showScore = F2(function (height,score) {
       return A2($Graphics$Collage.moveY,
-      $Model.maxY - 20,
+      $Basics.toFloat(height) - 20,
       $Graphics$Collage.text(A2($Text.color,$Color.white,$Text.monospace(A2($Text.height,30,$Text.fromString($Basics.toString(score)))))));
-   };
-   var view = function (model) {
+   });
+   var view = F2(function (_p4,model) {
+      var _p5 = _p4;
+      var _p6 = _p5._1;
       return A2($Graphics$Element.color,
       $Color.black,
       A3($Graphics$Collage.collage,
-      $Basics.round(2 * $Model.maxX),
-      $Basics.round(2 * $Model.maxY),
-      A2($List._op["::"],
-      drawScore(model.score),
-      A2($List._op["::"],drawShip(model.ship),A2($Basics._op["++"],A2($List.map,drawAsteroid,model.asteroids),A2($List.map,drawLaser,model.lasers))))));
-   };
-   var main = view($Model.initial);
+      _p5._0,
+      _p6,
+      A2($Basics._op["++"],
+      _U.list([A2(showScore,_p6 / 2 | 0,model.score),drawShip(model.ship)]),
+      A2($Basics._op["++"],A2($List.map,drawAsteroid,model.asteroids),A2($List.map,drawLaser,model.lasers)))));
+   });
    return _elm.View.values = {_op: _op
                              ,view: view
-                             ,drawScore: drawScore
+                             ,showScore: showScore
                              ,drawAsteroid: drawAsteroid
                              ,drawLaser: drawLaser
                              ,drawShip: drawShip
@@ -7134,8 +7188,7 @@ Elm.View.make = function (_elm) {
                              ,ship: ship
                              ,thrust: thrust
                              ,asteroid: asteroid
-                             ,laser: laser
-                             ,main: main};
+                             ,laser: laser};
 };Elm.Asteroids = Elm.Asteroids || {};
 Elm.Asteroids.make = function (_elm) {
    "use strict";
@@ -7152,45 +7205,57 @@ Elm.Asteroids.make = function (_elm) {
    $Result = Elm.Result.make(_elm),
    $Signal = Elm.Signal.make(_elm),
    $Time = Elm.Time.make(_elm),
-   $View = Elm.View.make(_elm);
+   $Touch = Elm.Touch.make(_elm),
+   $View = Elm.View.make(_elm),
+   $Window = Elm.Window.make(_elm);
    var _op = {};
    var update = F2(function (updt,model) {
       var _p0 = updt;
       switch (_p0.ctor)
       {case "TimeDelta": var _p1 = _p0._0;
-           return $Model.collisions(A2($Model.decay,_p1,A2($Model.move,_p1,model)));
-         case "MoveShip": var _p2 = _p0._0;
-           var ship = model.ship;
-           var ship$ = _U.update(ship,
-           {angV: $Basics.negate($Basics.toFloat(_p2.x)) * $Basics.pi
-           ,vx: 50 * $Basics.cos(ship.ang) * $Basics.toFloat(_p2.y)
-           ,vy: 50 * $Basics.sin(ship.ang) * $Basics.toFloat(_p2.y)});
-           return _U.update(model,{ship: ship$});
-         default: var delay = 1;
-           var ship = model.ship;
-           var newLaser = {x: ship.x,y: ship.y,vx: 400 * $Basics.cos(ship.ang),vy: 400 * $Basics.sin(ship.ang),ang: ship.ang,angV: 0};
-           return _U.update(model,{lasers: A2($List._op["::"],{ctor: "_Tuple2",_0: newLaser,_1: delay},model.lasers)});}
+           return $Model.collisions(A2($Model.decay,_p1,A2($Model.advance,_p1,model)));
+         case "Movement": return A2($Model.moveShip,_p0._0,model);
+         default: return $Model.fireLaser(model);}
    });
-   var FireLaser = {ctor: "FireLaser"};
-   var fireKey = A2($Signal.map,function (_p3) {    return FireLaser;},A3($Signal.filter,$Basics.identity,true,$Keyboard.space));
-   var MoveShip = function (a) {    return {ctor: "MoveShip",_0: a};};
-   var moveKeys = A2($Signal.map,MoveShip,$Keyboard.arrows);
-   var keyboardUpdates = A2($Signal.merge,fireKey,moveKeys);
+   var Fire = {ctor: "Fire"};
+   var fireUpdates = A2($Signal.map,function (_p2) {    return Fire;},$Time.every($Time.second));
+   var Movement = function (a) {    return {ctor: "Movement",_0: a};};
+   var keyboardUpdates = A2($Signal.merge,
+   A2($Signal.map,Movement,$Keyboard.arrows),
+   A2($Signal.map,function (_p3) {    return Fire;},A3($Signal.filter,$Basics.identity,false,$Keyboard.space)));
+   var touchUpdates = function () {
+      var decode = F2(function (_p4,ts) {
+         var _p5 = _p4;
+         var _p8 = _p5._0;
+         var _p6 = ts;
+         if (_p6.ctor === "[]") {
+               return Movement({x: 0,y: 0});
+            } else {
+               var _p7 = _p6._0;
+               return _U.cmp(_p7.y,_p5._1 / 2 | 0) < 0 ? _U.cmp(_p7.x,_p8 / 2 | 0) < 0 ? Movement({x: 0,y: 1}) : Fire : Movement({x: _U.cmp(_p7.x,
+                                                                                                                                 _p8 / 2 | 0) < 0 ? -1 : 1
+                                                                                                                                 ,y: 0});
+            }
+      });
+      return A3($Signal.map2,decode,$Window.dimensions,$Touch.touches);
+   }();
+   var controlUpdates = A2($Signal.merge,keyboardUpdates,touchUpdates);
    var TimeDelta = function (a) {    return {ctor: "TimeDelta",_0: a};};
-   var timeUpdates = A2($Signal.map,function (t) {    return TimeDelta(t / 1000);},$Time.fps(60));
-   var game = A3($Signal.foldp,update,$Model.initial,A2($Signal.merge,keyboardUpdates,timeUpdates));
-   var main = A2($Signal.map,$View.view,game);
-   var Keys = F2(function (a,b) {    return {x: a,y: b};});
+   var timeUpdates = A2($Signal.merge,fireUpdates,A2($Signal.map,function (t) {    return TimeDelta(t / $Time.second);},$Time.fps(30)));
+   var game = A3($Signal.foldp,update,$Model.initial,A2($Signal.merge,timeUpdates,controlUpdates));
+   var main = A3($Signal.map2,$View.view,$Window.dimensions,game);
+   var Vec = F2(function (a,b) {    return {x: a,y: b};});
    return _elm.Asteroids.values = {_op: _op
-                                  ,Keys: Keys
+                                  ,Vec: Vec
                                   ,TimeDelta: TimeDelta
-                                  ,MoveShip: MoveShip
-                                  ,FireLaser: FireLaser
+                                  ,Movement: Movement
+                                  ,Fire: Fire
                                   ,update: update
                                   ,main: main
                                   ,game: game
                                   ,timeUpdates: timeUpdates
+                                  ,fireUpdates: fireUpdates
+                                  ,controlUpdates: controlUpdates
                                   ,keyboardUpdates: keyboardUpdates
-                                  ,moveKeys: moveKeys
-                                  ,fireKey: fireKey};
+                                  ,touchUpdates: touchUpdates};
 };</script></head><body><script type="text/javascript">Elm.fullscreen(Elm.Asteroids)</script></body></html>

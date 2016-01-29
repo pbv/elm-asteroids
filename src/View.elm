@@ -9,18 +9,18 @@ import Graphics.Element exposing (..)
 import Color
 import Text
 
-view : Model -> Element
-view model =       
+view : (Int,Int) -> Model -> Element
+view (width,height) model =       
   color Color.black <|
-  collage (round (2*Model.maxX)) (round (2*Model.maxY)) <| 
-  drawScore model.score ::
-  drawShip model.ship ::
-  List.map drawAsteroid model.asteroids ++
-  List.map drawLaser model.lasers
+  collage width height <|
+    [ showScore (height//2) model.score
+    , drawShip model.ship ] ++
+    List.map drawAsteroid model.asteroids ++
+    List.map drawLaser model.lasers 
 
 
-drawScore score = 
-  moveY (Model.maxY-20) <|
+showScore height score = 
+  moveY (toFloat height - 20) <|
   text <| 
   Text.color Color.white <| 
   Text.monospace <|
@@ -67,6 +67,6 @@ laser = segment (0,0) (10,0) |>
 -- testing code
 -------------------------
 
-main = view Model.initial
+-- main = view Model.initial
 
 

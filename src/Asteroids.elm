@@ -9,61 +9,82 @@ import Signal
 import Time exposing (Time)
 import Graphics.Element exposing (Element, show)
 import Keyboard
-import Random
+import Window
+import Touch exposing (Touch)
 
-import Debug
-
-type alias Keys = 
+type alias Vec = 
   { x: Int, y : Int }
 
 type Update = TimeDelta Time
-            | MoveShip Keys
-            | FireLaser
+            | Movement Vec
+            | Fire
+
 
 
 update : Update -> Model -> Model
 update updt model 
   = case updt of
       TimeDelta dt -> model |>
-                      Model.move dt |> 
+                      Model.advance dt |> 
                       Model.decay dt |> 
                       Model.collisions 
-      MoveShip arrows -> 
-        let ship = model.ship
-            ship' = { ship | angV = negate (toFloat arrows.x)*pi,
-                        vx = 50*(cos ship.ang)*(toFloat arrows.y),
-                        vy = 50*(sin ship.ang)*(toFloat arrows.y)
-                    }
-        in { model | ship = ship' }
-      FireLaser -> 
-        let ship = model.ship
-            newLaser = {   x=ship.x, y=ship.y,
-                           vx= 400*cos (ship.ang), 
-                           vy= 400*sin (ship.ang), 
-                             ang=ship.ang, angV = 0 }
-            delay = 1
-        in { model | lasers = (newLaser,delay) :: model.lasers }
+      Movement vect -> 
+        Model.moveShip vect model 
+      Fire -> 
+        Model.fireLaser model
 
 
 
 
 --- putting it all together
 main : Signal Element
-main = Signal.map View.view game
+main = Signal.map2 View.view Window.dimensions game 
 
 
 game : Signal Model
 game = Signal.foldp update Model.initial <|
-       Signal.merge keyboardUpdates timeUpdates
+       Signal.merge timeUpdates controlUpdates 
 
 --
 -- individual update signals
 --
-timeUpdates = Signal.map (\t -> TimeDelta (t/1000)) (Time.fps 60)
+timeUpdates = Signal.merge fireUpdates
+              (Signal.map (\t -> TimeDelta (t/Time.second)) (Time.fps 30))
 
-keyboardUpdates = Signal.merge fireKey moveKeys
+fireUpdates 
+  = Signal.map (\_ -> Fire)  (Time.every Time.second)
 
-moveKeys = Signal.map MoveShip Keyboard.arrows
+controlUpdates = Signal.merge keyboardUpdates touchUpdates
 
-fireKey = Signal.map (\_ -> FireLaser) (Signal.filter identity True Keyboard.space)
+keyboardUpdates = 
+  Signal.merge 
+  (Signal.map Movement Keyboard.arrows)
+  (Signal.map (\_ -> Fire) <| Signal.filter identity False Keyboard.space)
+                  
+
+touchUpdates = 
+  let decode (w, h) ts
+      = case ts of 
+        [] -> Movement { x=0, y=0 }
+        t :: _ -> 
+          if t.y < h//2 then 
+            if t.x < w//2 then 
+              Movement { x=0, y=1 }
+            else
+              Fire
+          else
+            Movement { x = if t.x < w//2 then -1 else 1,
+                       y = 0 }
+
+  in
+    Signal.map2 decode Window.dimensions Touch.touches
+
+
+
+
+
+
+
+
+
 
