@@ -1,7 +1,7 @@
 
 # Elm-Asteroids
 
-A simple Asteroids-like video game written in Elm.
+A simple Asteroids-like video game written in [Elm](http://elm-lang.org).
 
 You can play it directly on your web browser
 [here](http://rawgit.com/pbv/elm-asteroids/master/html/elm-asteroids.html).
