@@ -10,7 +10,7 @@ import Time exposing (Time)
 import List
 
 
-type alias Object = {
+type alias Body = {
     x : Float,
     y : Float,
     vx : Float,
@@ -20,14 +20,14 @@ type alias Object = {
   }
 
 type alias Laser 
-  = (Object, Time)  -- time before decay
+  = (Body, Time)  -- time before decay
 
 type alias Asteroid
-  = (Object, Float)  -- rock size
+  = (Body, Float)  -- rock size
               
 
 type alias Model = {
-    ship : Object,
+    ship : Body,
     lasers : List Laser,
     asteroids : List Asteroid,
     score : Int
@@ -45,7 +45,7 @@ advance dt model =
       }
 
 -- | advance time on a single object 
-move1 : Time -> Object -> Object
+move1 : Time -> Body -> Body
 move1 dt obj 
   = let
     wrap h m = if h>m then h-2*m else if h < -m then h+2*m else h
@@ -64,13 +64,12 @@ decay dt model
 
 
 
-
 -- | collision detection
 -- laser and asteroids only (for simplicity)
 collisions : Model -> Model
 collisions model = 
   let 
-    -- splits asteroids that have been hit by lasers
+    -- split asteroids that have been hit by lasers
     (rocks, rocks') 
       = List.partition 
         (\rock -> List.any (collision rock) model.lasers) model.asteroids
@@ -98,13 +97,17 @@ fragment (obj, size) =
     []
 
 
--- check a single collision
+-- check single collisions
+-- * between asteroid and laser
 collision : Asteroid -> Laser -> Bool
-collision (obj1,size) (obj2,time) = sqDistance obj1 obj2 <= 100*size^2
+collision (obj1,size) (obj2,time) = 
+  sqDistance obj1 obj2 <= 100*size^2
+
+  
 
 
 -- | square of euclidean distance
-sqDistance : Object -> Object  -> Float
+sqDistance : Body -> Body  -> Float
 sqDistance obj1 obj2 = (obj1.x - obj2.x)^2 + (obj1.y - obj2.y)^2
 
 

@@ -40,7 +40,7 @@ update updt model
 
 --- putting it all together
 main : Signal Element
-main = Signal.map2 View.view Window.dimensions game 
+main = Signal.map2 View.view Window.dimensions game
 
 game : Signal Model
 game = Signal.foldp update Model.initial <|
@@ -50,12 +50,11 @@ game = Signal.foldp update Model.initial <|
 -- individual update signals
 --
 -- | timed updates
-timeUpdates = Signal.merge 
+timeUpdates = Signal.merge autofireUpdates
               (Signal.map (\t -> TimeDelta (t/Time.second)) (Time.fps 60))
-              autofireUpdates
+                
 
-autofireUpdates 
-  = Signal.map (\_ -> Fire)  (Time.every Time.second)
+autofireUpdates = Signal.map (\_ -> Fire) (Time.every Time.second)
 
 -- | user-controlled updates
 controlUpdates = Signal.merge keyboardUpdates touchUpdates
